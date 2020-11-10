@@ -4,6 +4,7 @@ import errno
 import tempfile
 from hashlib import md5
 from time import time
+
 try:
     import cPickle as pickle
 except ImportError:  # pragma: no cover
@@ -57,6 +58,7 @@ class FileSystemCache(BaseCache):
     def _file_count(self):
         return self.get(self._fs_count_file) or 0
 
+    # 写文件数
     def _update_count(self, delta=None, value=None):
         # If we have no threshold, don't count files
         if self._threshold == 0:
@@ -66,27 +68,36 @@ class FileSystemCache(BaseCache):
             new_count = self._file_count + delta
         else:
             new_count = value or 0
+
         self.set(self._fs_count_file, new_count, mgmt_element=True)
 
+    # 调整超时时间
     def _normalize_timeout(self, timeout):
         timeout = BaseCache._normalize_timeout(self, timeout)
+
         if timeout != 0:
             timeout = time() + timeout
+
         return int(timeout)
 
     def _list_dir(self):
         """return a list of (fully qualified) cache filenames
         """
+        # 管理文件
         mgmt_files = [self._get_filename(name).split('/')[-1]
                       for name in (self._fs_count_file,)]
+
+        # 返回非管理文件的文件
         return [os.path.join(self._path, fn) for fn in os.listdir(self._path)
                 if not fn.endswith(self._fs_transaction_suffix)
                 and fn not in mgmt_files]
 
     def _prune(self):
+        # 参数校验
         if self._threshold == 0 or not self._file_count > self._threshold:
             return
 
+        # 遍历文件
         entries = self._list_dir()
         now = time()
         for idx, fname in enumerate(entries):
@@ -94,6 +105,7 @@ class FileSystemCache(BaseCache):
                 remove = False
                 with open(fname, 'rb') as f:
                     expires = pickle.load(f)
+                # 删除超时，或者随机删除1/4
                 remove = (expires != 0 and expires <= now) or idx % 3 == 0
 
                 if remove:
@@ -103,18 +115,24 @@ class FileSystemCache(BaseCache):
         self._update_count(value=len(self._list_dir()))
 
     def clear(self):
+        # 删除所有文件
         for fname in self._list_dir():
             try:
                 os.remove(fname)
             except (IOError, OSError):
                 self._update_count(value=len(self._list_dir()))
                 return False
+
+        # 更新文件数
         self._update_count(value=0)
         return True
 
     def _get_filename(self, key):
+        # 编码调整
         if isinstance(key, text_type):
             key = key.encode('utf-8')  # XXX unicode review
+
+        # key 的md5
         hash = md5(key).hexdigest()
         return os.path.join(self._path, hash)
 
@@ -131,10 +149,13 @@ class FileSystemCache(BaseCache):
         except (IOError, OSError, pickle.PickleError):
             return None
 
+    # 不存在才加
     def add(self, key, value, timeout=None):
         filename = self._get_filename(key)
+
         if not os.path.exists(filename):
             return self.set(key, value, timeout)
+
         return False
 
     def set(self, key, value, timeout=None, mgmt_element=False):
@@ -146,26 +167,37 @@ class FileSystemCache(BaseCache):
         else:
             self._prune()
 
+        # 计算超时时间
         timeout = self._normalize_timeout(timeout)
+
+        # 计算文件名
         filename = self._get_filename(key)
+
         try:
+            # 创建临时文件
             fd, tmp = tempfile.mkstemp(suffix=self._fs_transaction_suffix,
                                        dir=self._path)
+            # 写超时时间和值
             with os.fdopen(fd, 'wb') as f:
                 pickle.dump(timeout, f, 1)
                 pickle.dump(value, f, pickle.HIGHEST_PROTOCOL)
 
+            # 重命名
             os.replace(tmp, filename)
             os.chmod(filename, self._mode)
         except (IOError, OSError):
+            # 系统出错
             return False
         else:
             # Management elements should not count towards threshold
+            # 更新文件数
             if not mgmt_element:
                 self._update_count(delta=1)
+
             return True
 
     def delete(self, key, mgmt_element=False):
+        # 删除文件，更新文件数
         try:
             os.remove(self._get_filename(key))
         except (IOError, OSError):
@@ -177,8 +209,12 @@ class FileSystemCache(BaseCache):
             return True
 
     def has(self, key):
+        # 找文件名
         filename = self._get_filename(key)
+
         try:
+            # 打开文件，读取内容
+            # 校验超时时间，如果超时会删除文件
             with open(filename, 'rb') as f:
                 pickle_time = pickle.load(f)
                 if pickle_time == 0 or pickle_time >= time():

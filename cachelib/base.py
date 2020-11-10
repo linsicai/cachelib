@@ -15,6 +15,7 @@ def _items(mappingorseq):
     """
     if hasattr(mappingorseq, 'items'):
         return iteritems(mappingorseq)
+
     return mappingorseq
 
 
@@ -36,6 +37,7 @@ class BaseCache(object):
             timeout = self.default_timeout
         return timeout
 
+    # 获取
     def get(self, key):
         """Look up key in the cache and return the value for it.
 
@@ -44,6 +46,7 @@ class BaseCache(object):
         """
         return None
 
+    # 删除
     def delete(self, key):
         """Delete `key` from the cache.
 
@@ -53,6 +56,7 @@ class BaseCache(object):
         """
         return True
 
+    # 批量删除
     def get_many(self, *keys):
         """Returns a list of values for the given keys.
         For each key an item in the list is created::
@@ -66,6 +70,7 @@ class BaseCache(object):
         """
         return [self.get(k) for k in keys]
 
+    # 批量查询，返回字典
     def get_dict(self, *keys):
         """Like :meth:`get_many` but return a dict::
 
@@ -109,6 +114,7 @@ class BaseCache(object):
         """
         return True
 
+    # 批量设置
     def set_many(self, mapping, timeout=None):
         """Sets multiple keys and values from a mapping.
 
@@ -125,6 +131,7 @@ class BaseCache(object):
                 rv = False
         return rv
 
+    # 批量删除
     def delete_many(self, *keys):
         """Deletes multiple keys at once.
 
@@ -135,6 +142,7 @@ class BaseCache(object):
         """
         return all(self.delete(key) for key in keys)
 
+    # 是否有key
     def has(self, key):
         """Checks if a key exists in the cache without returning it. This is a
         cheap operation that bypasses loading the actual data on the backend.
@@ -150,6 +158,7 @@ class BaseCache(object):
             'explicitly if you don\'t care about performance.'
         )
 
+    # 清理
     def clear(self):
         """Clears the cache.  Keep in mind that not all caches support
         completely clearing the cache.
@@ -159,6 +168,7 @@ class BaseCache(object):
         """
         return True
 
+    # key 值加1
     def inc(self, key, delta=1):
         """Increments the value of a key by `delta`.  If the key does
         not yet exist it is initialized with `delta`.
@@ -172,6 +182,7 @@ class BaseCache(object):
         value = (self.get(key) or 0) + delta
         return value if self.set(key, value) else None
 
+    # key 值减1
     def dec(self, key, delta=1):
         """Decrements the value of a key by `delta`.  If the key does
         not yet exist it is initialized with `-delta`.

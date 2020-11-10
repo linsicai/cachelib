@@ -24,10 +24,12 @@ class SimpleCache(BaseCache):
 
     def __init__(self, threshold=500, default_timeout=300):
         BaseCache.__init__(self, default_timeout)
+
         self._cache = {}
         self.clear = self._cache.clear
         self._threshold = threshold
 
+    # 清理，超时或者随机1/4
     def _prune(self):
         if len(self._cache) > self._threshold:
             now = time()
@@ -38,12 +40,14 @@ class SimpleCache(BaseCache):
             for key in toremove:
                 self._cache.pop(key, None)
 
+    # 计算超时时间
     def _normalize_timeout(self, timeout):
         timeout = BaseCache._normalize_timeout(self, timeout)
         if timeout > 0:
             timeout = time() + timeout
         return timeout
 
+   # 获取值且不超时
     def get(self, key):
         try:
             expires, value = self._cache[key]
@@ -53,25 +57,40 @@ class SimpleCache(BaseCache):
             return None
 
     def set(self, key, value, timeout=None):
+        # 计算超时时间
         expires = self._normalize_timeout(timeout)
+
+        # 清理
         self._prune()
+
+        # 写kv
         self._cache[key] = (expires, pickle.dumps(value,
                                                   pickle.HIGHEST_PROTOCOL))
         return True
 
     def add(self, key, value, timeout=None):
+        # 计算超时时间
         expires = self._normalize_timeout(timeout)
+
+        # 清理
         self._prune()
+
+        # 拼value
         item = (expires, pickle.dumps(value,
                                       pickle.HIGHEST_PROTOCOL))
+
+     
+        # 有值退出
         if key in self._cache:
             return False
         self._cache.setdefault(key, item)
         return True
 
+    # 删除
     def delete(self, key):
         return self._cache.pop(key, None) is not None
 
+    # 有key 且不超时
     def has(self, key):
         try:
             expires, value = self._cache[key]

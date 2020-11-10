@@ -56,6 +56,7 @@ class RedisCache(BaseCache):
             timeout = -1
         return timeout
 
+    # 对象序列化
     def dump_object(self, value):
         """Dumps an object into a string for redis.  By default it serializes
         integers as regular string and pickle dumps everything else.
@@ -63,8 +64,10 @@ class RedisCache(BaseCache):
         t = type(value)
         if t in integer_types:
             return str(value).encode('ascii')
+
         return b'!' + pickle.dumps(value)
 
+    # 加载对象
     def load_object(self, value):
         """The reversal of :meth:`dump_object`.  This might be called with
         None.
@@ -85,6 +88,7 @@ class RedisCache(BaseCache):
     def get(self, key):
         return self.load_object(self._client.get(self.key_prefix + key))
 
+    # 批量查询
     def get_many(self, *keys):
         if self.key_prefix:
             keys = [self.key_prefix + key for key in keys]
@@ -101,6 +105,7 @@ class RedisCache(BaseCache):
                                         value=dump, time=timeout)
         return result
 
+    # 写值+设置超时时间
     def add(self, key, value, timeout=None):
         timeout = self._normalize_timeout(timeout)
         dump = self.dump_object(value)
@@ -110,11 +115,15 @@ class RedisCache(BaseCache):
         )
 
     def set_many(self, mapping, timeout=None):
+        # 计算时间
         timeout = self._normalize_timeout(timeout)
+
         # Use transaction=False to batch without calling redis MULTI
         # which is not supported by twemproxy
+        # 流水线
         pipe = self._client.pipeline(transaction=False)
 
+        # 设置值
         for key, value in _items(mapping):
             dump = self.dump_object(value)
             if timeout == -1:
@@ -122,11 +131,14 @@ class RedisCache(BaseCache):
             else:
                 pipe.setex(name=self.key_prefix + key, value=dump,
                            time=timeout)
+
+        # 执行
         return pipe.execute()
 
     def delete(self, key):
         return self._client.delete(self.key_prefix + key)
 
+    # 批量删除
     def delete_many(self, *keys):
         if not keys:
             return
@@ -137,6 +149,7 @@ class RedisCache(BaseCache):
     def has(self, key):
         return self._client.exists(self.key_prefix + key)
 
+    # 删除key 之后做flush
     def clear(self):
         status = False
         if self.key_prefix:
